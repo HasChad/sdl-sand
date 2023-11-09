@@ -20,7 +20,6 @@ async fn main() -> Result<()> {
     let width: usize = (SCREEN_WIDTH) as usize;
     let height: usize = (SCREEN_HEIGHT) as usize;
 
-    let mut cells = vec![CellState::Dead; width * height];
     let mut buffer = vec![CellState::Dead; width * height];
 
     //let mut xpos = vec![CellState::Dead; width];
@@ -38,14 +37,30 @@ async fn main() -> Result<()> {
             let (mut _mouse_posx, mut _mouse_posy) = mouse_position();
             let mut _mousepos: usize = (_mouse_posy * width as f32 + _mouse_posx) as usize;
 
+            buffer[_mousepos - width] = CellState::Sand;
+            buffer[_mousepos - width - 1] = CellState::Sand;
+            buffer[_mousepos - width + 1] = CellState::Sand;
+            buffer[_mousepos + width] = CellState::Sand;
+            buffer[_mousepos + width - 1] = CellState::Sand;
+            buffer[_mousepos + width + 1] = CellState::Sand;
             buffer[_mousepos] = CellState::Sand;
+            buffer[_mousepos - 1] = CellState::Sand;
+            buffer[_mousepos + 1] = CellState::Sand;
         }
 
         if is_mouse_button_down(MouseButton::Right) {
             let (mut _mouse_posx, mut _mouse_posy) = mouse_position();
             let mut _mousepos: usize = (_mouse_posy * width as f32 + _mouse_posx) as usize;
 
+            buffer[_mousepos - width] = CellState::Water;
+            buffer[_mousepos - width - 1] = CellState::Water;
+            buffer[_mousepos - width + 1] = CellState::Water;
+            buffer[_mousepos + width] = CellState::Water;
+            buffer[_mousepos + width - 1] = CellState::Water;
+            buffer[_mousepos + width + 1] = CellState::Water;
             buffer[_mousepos] = CellState::Water;
+            buffer[_mousepos - 1] = CellState::Water;
+            buffer[_mousepos + 1] = CellState::Water;
         }
 
         //Pixel iterate
@@ -55,25 +70,30 @@ async fn main() -> Result<()> {
                     continue;
                 }
                 let pixel_pos: usize = (y * width) + x;
+                let left: usize = pixel_pos - 1;
+                let right: usize = pixel_pos + 1;
+                let down: usize = pixel_pos + width;
+                let down_left: usize = down - 1;
+                let down_right: usize = down + 1;
 
                 match buffer[pixel_pos] {
                     CellState::Sand => {
                         if y != height - 1 {
                             //Down
-                            if buffer[pixel_pos + width] == CellState::Dead {
-                                buffer[pixel_pos + width] = CellState::Sand;
-                                buffer[(y * width) + x] = CellState::Dead;
+                            if buffer[down] == CellState::Dead {
+                                buffer[down] = CellState::Sand;
+                                buffer[pixel_pos] = CellState::Dead;
                             //Down left
-                            } else if buffer[pixel_pos + width - 1] == CellState::Dead {
-                                buffer[pixel_pos + width - 1] = CellState::Sand;
+                            } else if buffer[down_left] == CellState::Dead {
+                                buffer[down_left] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
                             //Down right
-                            } else if buffer[pixel_pos + width + 1] == CellState::Dead {
-                                buffer[pixel_pos + width + 1] = CellState::Sand;
+                            } else if buffer[down_right] == CellState::Dead {
+                                buffer[down_right] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
                                 //Water collision
-                            } else if buffer[pixel_pos + width] == CellState::Water {
-                                buffer[pixel_pos + width] = CellState::Sand;
+                            } else if buffer[down] == CellState::Water {
+                                buffer[down] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Water;
                             }
                         }
@@ -83,24 +103,24 @@ async fn main() -> Result<()> {
                         let control = y != height - 2;
 
                         //Down
-                        if buffer[pixel_pos + width] == CellState::Dead && control {
-                            buffer[pixel_pos + width] = CellState::Water;
+                        if buffer[down] == CellState::Dead && control {
+                            buffer[down] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         //Down left
-                        } else if buffer[pixel_pos + width - 1] == CellState::Dead && control {
-                            buffer[pixel_pos + width - 1] = CellState::Water;
+                        } else if buffer[down_left] == CellState::Dead && control {
+                            buffer[down_left] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         //Down right
-                        } else if buffer[pixel_pos + width + 1] == CellState::Dead && control {
-                            buffer[pixel_pos + width + 1] = CellState::Water;
+                        } else if buffer[down_right] == CellState::Dead && control {
+                            buffer[down_right] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         //Left
-                        } else if buffer[pixel_pos - 1] == CellState::Dead {
-                            buffer[pixel_pos - 1] = CellState::Water;
+                        } else if buffer[left] == CellState::Dead {
+                            buffer[left] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         //Right
-                        } else if buffer[pixel_pos + 1] == CellState::Dead {
-                            buffer[pixel_pos + 1] = CellState::Water;
+                        } else if buffer[right] == CellState::Dead {
+                            buffer[right] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         }
                     }
@@ -109,9 +129,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        for i in 0..buffer.len() {
-            cells[i] = buffer[i];
-
+        //Per-pixel coloring
+        for (i, _) in buffer.iter().enumerate() {
             image.set_pixel(
                 (i % width) as u32,
                 (i / width) as u32,
