@@ -22,6 +22,8 @@ async fn main() -> Result<()> {
 
     let mut buffer = vec![CellState::Dead; width * height];
 
+    let mut _current_item = CellState::Sand;
+
     //let mut xpos = vec![CellState::Dead; width];
     //let mut ypos = vec![xpos; height];
 
@@ -32,35 +34,27 @@ async fn main() -> Result<()> {
     loop {
         clear_background(BLACK);
 
+        //Mouse item changer
+        if is_key_pressed(KeyCode::Key2) {
+            _current_item = CellState::Water;
+        } else if is_key_pressed(KeyCode::Key1) {
+            _current_item = CellState::Sand;
+        }
+
         //Mouse input
         if is_mouse_button_down(MouseButton::Left) {
             let (mut _mouse_posx, mut _mouse_posy) = mouse_position();
             let mut _mousepos: usize = (_mouse_posy * width as f32 + _mouse_posx) as usize;
 
-            buffer[_mousepos - width] = CellState::Sand;
-            buffer[_mousepos - width - 1] = CellState::Sand;
-            buffer[_mousepos - width + 1] = CellState::Sand;
-            buffer[_mousepos + width] = CellState::Sand;
-            buffer[_mousepos + width - 1] = CellState::Sand;
-            buffer[_mousepos + width + 1] = CellState::Sand;
-            buffer[_mousepos] = CellState::Sand;
-            buffer[_mousepos - 1] = CellState::Sand;
-            buffer[_mousepos + 1] = CellState::Sand;
-        }
-
-        if is_mouse_button_down(MouseButton::Right) {
-            let (mut _mouse_posx, mut _mouse_posy) = mouse_position();
-            let mut _mousepos: usize = (_mouse_posy * width as f32 + _mouse_posx) as usize;
-
-            buffer[_mousepos - width] = CellState::Water;
-            buffer[_mousepos - width - 1] = CellState::Water;
-            buffer[_mousepos - width + 1] = CellState::Water;
-            buffer[_mousepos + width] = CellState::Water;
-            buffer[_mousepos + width - 1] = CellState::Water;
-            buffer[_mousepos + width + 1] = CellState::Water;
-            buffer[_mousepos] = CellState::Water;
-            buffer[_mousepos - 1] = CellState::Water;
-            buffer[_mousepos + 1] = CellState::Water;
+            buffer[_mousepos - width] = _current_item;
+            buffer[_mousepos - width - 1] = _current_item;
+            buffer[_mousepos - width + 1] = _current_item;
+            buffer[_mousepos + width] = _current_item;
+            buffer[_mousepos + width - 1] = _current_item;
+            buffer[_mousepos + width + 1] = _current_item;
+            buffer[_mousepos] = _current_item;
+            buffer[_mousepos - 1] = _current_item;
+            buffer[_mousepos + 1] = _current_item;
         }
 
         //Pixel iterate
