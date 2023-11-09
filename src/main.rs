@@ -72,21 +72,25 @@ async fn main() -> Result<()> {
                 let down_right: usize = down + 1;
 
                 match buffer[pixel_pos] {
+                    CellState::Dead => continue,
                     CellState::Sand => {
                         if down < width * height {
                             //Down
                             if buffer[down] == CellState::Dead {
                                 buffer[down] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
+
                             //Down left
                             } else if buffer[down_left] == CellState::Dead && x > 0 {
                                 buffer[down_left] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
+
                             //Down right
                             } else if buffer[down_right] == CellState::Dead && x < width - 1 {
                                 buffer[down_right] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
-                                //Water collision
+
+                            //Water collision
                             } else if buffer[down] == CellState::Water {
                                 buffer[down] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Water;
@@ -95,32 +99,34 @@ async fn main() -> Result<()> {
                     }
 
                     CellState::Water => {
-                        if down < width * height {
-                            //Down
-                            if buffer[down] == CellState::Dead {
-                                buffer[down] = CellState::Water;
-                                buffer[pixel_pos] = CellState::Dead;
-                            //Down left
-                            } else if buffer[down_left] == CellState::Dead {
-                                buffer[down_left] = CellState::Water;
-                                buffer[pixel_pos] = CellState::Dead;
-                            //Down right
-                            } else if buffer[down_right] == CellState::Dead {
-                                buffer[down_right] = CellState::Water;
-                                buffer[pixel_pos] = CellState::Dead;
-                            }
-                        }
+                        //Down
+                        if buffer[down] == CellState::Dead && down < width * height {
+                            buffer[down] = CellState::Water;
+                            buffer[pixel_pos] = CellState::Dead;
+
+                        //Down left
+                        } else if buffer[down_left] == CellState::Dead && down < width * height {
+                            buffer[down_left] = CellState::Water;
+                            buffer[pixel_pos] = CellState::Dead;
+
+                        //Down right
+                        } else if buffer[down_right] == CellState::Dead && down < width * height {
+                            buffer[down_right] = CellState::Water;
+                            buffer[pixel_pos] = CellState::Dead;
+
                         //Left
-                        else if buffer[left] == CellState::Dead {
+                        } else if buffer[left] == CellState::Dead {
+                            info!("succes left");
                             buffer[left] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
+
                         //Right
                         } else if buffer[right] == CellState::Dead {
+                            info!("success right");
                             buffer[right] = CellState::Water;
                             buffer[pixel_pos] = CellState::Dead;
                         }
                     }
-                    _ => (),
                 }
             }
         }
