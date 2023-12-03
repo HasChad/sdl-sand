@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 sdl2 = "0.36.0"
-color-eyre = "0.6.2"
 rand = "0.8.5"
 
 [profile.dev]
