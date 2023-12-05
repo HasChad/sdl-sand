@@ -82,7 +82,7 @@ pub fn main() -> Result<(), String> {
                 match buffer[pixel_pos] {
                     CellState::Dead => continue,
                     CellState::Sand => {
-                        if down < GRID_X_SIZE * GRID_Y_SIZE {
+                        if y != 119 {
                             //Down
                             if buffer[down] == CellState::Dead {
                                 buffer[down] = CellState::Sand;
@@ -94,7 +94,7 @@ pub fn main() -> Result<(), String> {
                                 buffer[pixel_pos] = CellState::Dead;
 
                             //Down right
-                            } else if x != 160 && buffer[down_right] == CellState::Dead {
+                            } else if x != 159 && buffer[down_right] == CellState::Dead {
                                 buffer[down_right] = CellState::Sand;
                                 buffer[pixel_pos] = CellState::Dead;
                             }
