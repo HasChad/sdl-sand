@@ -1,33 +1,22 @@
-use rand::{thread_rng, Rng};
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::rect::Rect;
-use std::time::Duration;
+mod cells;
 
-const GRID_X_SIZE: usize = 160;
-const GRID_Y_SIZE: usize = 120;
-const DOT_SIZE_IN_PXS: usize = 5;
+use cells::{Cell, CellState, Direction};
+use sdl2::{
+    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window,
+    EventPump,
+};
+use std::{thread::sleep, time::Duration};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum CellState {
-    Dead,
-    Sand,
-    Water(Direction),
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum Direction {
-    Right,
-    Left,
-}
+const GRID_X_SIZE: usize = 300;
+const GRID_Y_SIZE: usize = 160;
+const DOT_SIZE_IN_PXS: usize = 4;
 
 pub fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?; //SDL2 init
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem //Creating window
         .window(
-            "sdl-sand",
+            "SDL-Sand",
             (GRID_X_SIZE * DOT_SIZE_IN_PXS) as u32,
             (GRID_Y_SIZE * DOT_SIZE_IN_PXS) as u32,
         )
@@ -37,19 +26,20 @@ pub fn main() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-    canvas.set_draw_color(Color::RGB(0, 0, 0)); //black background
     canvas.clear();
 
     let mut event_pump = sdl_context.event_pump()?;
 
-    let mut rng = thread_rng();
-
     //Game things
-    let mut buffer = vec![CellState::Dead; GRID_X_SIZE * GRID_Y_SIZE + 161];
-    let mut cells = vec![CellState::Dead; GRID_X_SIZE * GRID_Y_SIZE + 161];
+    let mut cells = vec![Cell::spawn_empty(); GRID_X_SIZE * GRID_Y_SIZE + GRID_X_SIZE + 1];
+    let mut brush = Cell::spawn_sand();
 
     //Game Loop
     'running: loop {
+        sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        canvas.set_draw_color(Color::RGB(10, 10, 10));
+        canvas.clear();
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } //Quit app when pressed close button
@@ -60,137 +50,144 @@ pub fn main() -> Result<(), String> {
                 _ => {}
             }
         }
-        canvas.set_draw_color(Color::BLACK);
-        canvas.clear();
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        update_dropper(&mut cells, &mut brush, &event_pump);
+        update_world(&mut cells);
+        draw_world(&mut cells, &mut canvas);
 
-        //* Main game loop
-        let mouse_xpos = event_pump.mouse_state().x() / 5;
-        let mouse_ypos = event_pump.mouse_state().y() / 5;
-        let buffer_pos = (mouse_xpos + (mouse_ypos * GRID_X_SIZE as i32)) as usize;
+        canvas.present();
+    }
 
-        if mouse_xpos >= 0
-            && mouse_xpos < (GRID_X_SIZE as i32)
-            && mouse_ypos >= 0
-            && mouse_ypos < (GRID_Y_SIZE as i32)
-        {
-            println!("x: {}, y: {}", mouse_xpos, mouse_ypos);
-            //Left click to spawn sand
-            if event_pump.mouse_state().left() && buffer[buffer_pos] == CellState::Dead {
-                buffer[buffer_pos] = CellState::Sand;
-            }
-            //Right click to spawn water
-            if event_pump.mouse_state().right() && buffer[buffer_pos] == CellState::Dead {
-                buffer[buffer_pos] = CellState::Water(Direction::Right);
-            }
+    Ok(())
+}
+
+fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &EventPump) {
+    let mouse_xpos = event_pump.mouse_state().x() / DOT_SIZE_IN_PXS as i32;
+    let mouse_ypos = event_pump.mouse_state().y() / DOT_SIZE_IN_PXS as i32;
+    let pixel_pos = (mouse_xpos + (mouse_ypos * GRID_X_SIZE as i32)) as usize;
+
+    //Mouse Click Spawn
+    if mouse_xpos >= 0
+        && mouse_xpos < (GRID_X_SIZE as i32)
+        && mouse_ypos >= 0
+        && mouse_ypos < (GRID_Y_SIZE as i32)
+    {
+        if event_pump.mouse_state().right() {
+            *brush = Cell::spawn_water();
         }
 
-        //Pixel iterate
-        for y in (0..GRID_Y_SIZE).rev() {
-            for x in 0..GRID_X_SIZE {
-                let pixel_pos: usize = (y * GRID_X_SIZE) + x;
-                let down: usize = pixel_pos + GRID_X_SIZE;
-                let down_left: usize = down - 1;
-                let down_right: usize = down + 1;
+        if event_pump.mouse_state().left() || event_pump.mouse_state().right() {
+            cells[pixel_pos] = *brush;
+            cells[pixel_pos + 1] = *brush;
+            cells[pixel_pos - 1] = *brush;
+            cells[pixel_pos + GRID_X_SIZE] = *brush;
+            cells[pixel_pos - GRID_X_SIZE] = *brush;
+        }
+    }
+}
 
-                match cells[pixel_pos] {
-                    CellState::Dead => continue,
-                    CellState::Sand => {
-                        //Down-Side checker
-                        let downleft_is_empty = buffer[down_left] == CellState::Dead
-                            && cells[down_left] == CellState::Dead;
-                        let downright_is_empty = buffer[down_right] == CellState::Dead
-                            && cells[down_right] == CellState::Dead;
+fn update_world(cells: &mut [Cell]) {
+    //Pixel iterate
+    for y in (0..GRID_Y_SIZE).rev() {
+        for x in 0..GRID_X_SIZE {
+            let pixel_pos: usize = (y * GRID_X_SIZE) + x;
+            let down: usize = pixel_pos + GRID_X_SIZE;
+            let down_left: usize = down - 1;
+            let down_right: usize = down + 1;
 
-                        if y != 119 {
-                            //Down
-                            if buffer[down] == CellState::Dead && cells[down] == CellState::Dead {
-                                buffer[down] = CellState::Sand;
-                                buffer[pixel_pos] = CellState::Dead;
-                            //Down water
-                            } else if buffer[down] == CellState::Water(Direction::Right)
-                                && (cells[down] == CellState::Water(Direction::Right)
-                                    || cells[down] == CellState::Water(Direction::Left))
-                            {
-                                buffer[down] = CellState::Sand;
-                                buffer[pixel_pos] = CellState::Water(Direction::Right);
-                            //Down left
-                            } else if x != 0 && downleft_is_empty {
-                                buffer[down_left] = CellState::Sand;
-                                buffer[pixel_pos] = CellState::Dead;
+            match cells[pixel_pos].state {
+                CellState::Dead => continue,
+                CellState::Sand => {
+                    //Down-Side checker
+                    let downleft_is_empty = cells[down_left] == Cell::spawn_empty();
+                    let downright_is_empty = cells[down_right] == Cell::spawn_empty();
 
-                            //Down right
-                            } else if x != 159 && downright_is_empty {
-                                buffer[down_right] = CellState::Sand;
-                                buffer[pixel_pos] = CellState::Dead;
-                            }
+                    if y != GRID_Y_SIZE - 1 {
+                        //Down
+                        if cells[down] == Cell::spawn_empty() {
+                            cells[down] = Cell::spawn_sand();
+                            cells[pixel_pos] = Cell::spawn_empty();
+                        //Down water
+                        } else if cells[down].state == CellState::Water {
+                            cells[down] = Cell::spawn_sand();
+                            cells[pixel_pos] = Cell::spawn_water();
+                        //Down left
+                        } else if x != 0 && downleft_is_empty {
+                            cells[down_left] = Cell::spawn_sand();
+                            cells[pixel_pos] = Cell::spawn_empty();
+                        //Down right
+                        } else if x != GRID_X_SIZE - 1 && downright_is_empty {
+                            cells[down_right] = Cell::spawn_sand();
+                            cells[pixel_pos] = Cell::spawn_empty();
                         }
                     }
-                    CellState::Water(side) => {
-                        //Down-Side checker
-                        let downleft_is_empty = buffer[down_left] == CellState::Dead
-                            && cells[down_left] == CellState::Dead;
-                        let downright_is_empty = buffer[down_right] == CellState::Dead
-                            && cells[down_right] == CellState::Dead;
-                        //Side checker
-                        let left_is_empty = buffer[pixel_pos - 1] == CellState::Dead
-                            && cells[pixel_pos - 1] == CellState::Dead;
-                        let right_is_empty = buffer[pixel_pos + 1] == CellState::Dead
-                            && cells[pixel_pos + 1] == CellState::Dead;
+                }
+                CellState::Water => {
+                    //Down-Side checker
+                    let downleft_is_empty = cells[down_left] == Cell::spawn_empty();
+                    let downright_is_empty = cells[down_right] == Cell::spawn_empty();
+                    //Side checker
+                    let left_is_empty = cells[pixel_pos - 1] == Cell::spawn_empty();
+                    let right_is_empty = cells[pixel_pos + 1] == Cell::spawn_empty();
 
-                        if y != 119 {
-                            //Down
-                            if buffer[down] == CellState::Dead && cells[down] == CellState::Dead {
-                                buffer[down] = CellState::Water(side);
-                                buffer[pixel_pos] = CellState::Dead;
-                                continue;
-                            //Down left
-                            } else if x != 0 && downleft_is_empty {
-                                buffer[down_left] = CellState::Water(side);
-                                buffer[pixel_pos] = CellState::Dead;
-                                continue;
-                            //Down right
-                            } else if x != 159 && downright_is_empty {
-                                buffer[down_right] = CellState::Water(side);
-                                buffer[pixel_pos] = CellState::Dead;
-                                continue;
-                            }
-                        }
+                    if y != GRID_Y_SIZE - 1 {
+                        //Down
+                        if cells[down] == Cell::spawn_empty() {
+                            cells[down] = Cell::spawn_water();
+                            cells[pixel_pos] = Cell::spawn_empty();
 
+                        //Down left
+                        } else if x != 0 && downleft_is_empty {
+                            cells[down_left] = Cell::spawn_water();
+                            cells[pixel_pos] = Cell::spawn_empty();
+
+                        //Down right
+                        } else if x != GRID_X_SIZE - 1 && downright_is_empty {
+                            cells[down_right] = Cell::spawn_water();
+                            cells[pixel_pos] = Cell::spawn_empty();
                         //Left
-                        if x != 0 && left_is_empty && side == Direction::Left {
-                            buffer[pixel_pos - 1] = CellState::Water(side);
-                            buffer[pixel_pos] = CellState::Dead;
-                        }
+                        } else if x != 0
+                            && left_is_empty
+                            && cells[pixel_pos].move_direction == Direction::Left
+                            && !cells[pixel_pos].is_moved
+                        {
+                            cells[pixel_pos - 1] = Cell::spawn_water();
+                            cells[pixel_pos - 1].move_direction = Direction::Left;
+                            cells[pixel_pos] = Cell::spawn_empty();
                         //Right
-                        else if x != 159 && right_is_empty && side == Direction::Right {
-                            buffer[pixel_pos + 1] = CellState::Water(side);
-                            buffer[pixel_pos] = CellState::Dead;
+                        } else if x != GRID_X_SIZE - 1
+                            && right_is_empty
+                            && cells[pixel_pos].move_direction == Direction::Right
+                            && !cells[pixel_pos].is_moved
+                        {
+                            cells[pixel_pos + 1] = Cell::spawn_water();
+                            cells[pixel_pos + 1].move_direction = Direction::Right;
+                            cells[pixel_pos] = Cell::spawn_empty();
                         } else {
-                            match side {
+                            match cells[pixel_pos].move_direction {
                                 Direction::Left => {
-                                    buffer[pixel_pos] = CellState::Water(Direction::Right)
+                                    cells[pixel_pos].move_direction = Direction::Right
                                 }
                                 Direction::Right => {
-                                    buffer[pixel_pos] = CellState::Water(Direction::Left)
+                                    cells[pixel_pos].move_direction = Direction::Left
                                 }
+                                Direction::None => (),
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        //Per-pixel coloring
-        for i in 0..buffer.len() {
-            cells[i] = buffer[i];
+fn draw_world(cells: &mut [Cell], canvas: &mut Canvas<Window>) {
+    //Per-pixel coloring
+    for (i, cell) in cells.iter_mut().enumerate() {
+        if cell.state != CellState::Dead {
+            canvas.set_draw_color(cell.color);
 
-            match cells[i] {
-                CellState::Dead => canvas.set_draw_color(Color::BLACK),
-                CellState::Sand => canvas.set_draw_color(Color::YELLOW),
-                CellState::Water(_) => canvas.set_draw_color(Color::BLUE),
-            }
+            cell.is_moved = false;
 
             canvas
                 .fill_rect(Rect::new(
@@ -202,9 +199,5 @@ pub fn main() -> Result<(), String> {
                 .ok()
                 .unwrap_or_default();
         }
-
-        canvas.present();
     }
-
-    Ok(())
 }
