@@ -1,3 +1,2 @@
-# macro-sand
-
-sandbox game made with macroquad using rust
+# SDL-Sand
+Falling sand game made with [Rust](https://www.rust-lang.org/) using SDL
