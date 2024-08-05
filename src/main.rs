@@ -1,11 +1,19 @@
-mod cells;
-
-use cells::{Cell, CellState, Direction};
 use sdl2::{
-    event::Event, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window,
+    event::Event,
+    keyboard::{Keycode, Scancode},
+    pixels::Color,
+    rect::Rect,
+    render::Canvas,
+    video::Window,
     EventPump,
 };
 use std::{thread::sleep, time::Duration};
+
+mod cell_updates;
+pub mod cells;
+
+use cell_updates::*;
+use cells::{Cell, CellState};
 
 const GRID_X_SIZE: usize = 300;
 const GRID_Y_SIZE: usize = 160;
@@ -51,7 +59,7 @@ pub fn main() -> Result<(), String> {
             }
         }
 
-        update_dropper(&mut cells, &mut brush, &event_pump);
+        update_dropper(&mut cells, &mut brush, &mut event_pump);
         update_world(&mut cells);
         draw_world(&mut cells, &mut canvas);
 
@@ -61,28 +69,47 @@ pub fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &EventPump) {
+fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPump) {
+    //Change Brush
+    for input in event_pump.keyboard_state().pressed_scancodes() {
+        match input {
+            Scancode::Num1 => *brush = Cell::spawn_sand(),
+            Scancode::Num2 => *brush = Cell::spawn_water(),
+            _ => (),
+        }
+    }
+
+    //Mouse Click Spawn
     let mouse_xpos = event_pump.mouse_state().x() / DOT_SIZE_IN_PXS as i32;
     let mouse_ypos = event_pump.mouse_state().y() / DOT_SIZE_IN_PXS as i32;
     let pixel_pos = (mouse_xpos + (mouse_ypos * GRID_X_SIZE as i32)) as usize;
 
-    //Mouse Click Spawn
     if mouse_xpos >= 0
         && mouse_xpos < (GRID_X_SIZE as i32)
         && mouse_ypos >= 0
         && mouse_ypos < (GRID_Y_SIZE as i32)
+        && event_pump.mouse_state().left()
+        && cells[pixel_pos] == Cell::spawn_empty()
     {
-        if event_pump.mouse_state().right() {
-            *brush = Cell::spawn_water();
-        }
+        cells[pixel_pos] = *brush;
 
-        if event_pump.mouse_state().left() || event_pump.mouse_state().right() {
-            cells[pixel_pos] = *brush;
-            cells[pixel_pos + 1] = *brush;
-            cells[pixel_pos - 1] = *brush;
-            cells[pixel_pos + GRID_X_SIZE] = *brush;
-            cells[pixel_pos - GRID_X_SIZE] = *brush;
-        }
+        //top
+        cells[pixel_pos - 2 * GRID_X_SIZE] = *brush;
+        cells[pixel_pos - GRID_X_SIZE] = *brush;
+        cells[pixel_pos - GRID_X_SIZE - 1] = *brush;
+        cells[pixel_pos - GRID_X_SIZE + 1] = *brush;
+
+        //middle
+        cells[pixel_pos - 2] = *brush;
+        cells[pixel_pos - 1] = *brush;
+        cells[pixel_pos + 1] = *brush;
+        cells[pixel_pos + 2] = *brush;
+
+        //bottom
+        cells[pixel_pos + 2 * GRID_X_SIZE] = *brush;
+        cells[pixel_pos + GRID_X_SIZE] = *brush;
+        cells[pixel_pos + GRID_X_SIZE - 1] = *brush;
+        cells[pixel_pos + GRID_X_SIZE + 1] = *brush;
     }
 }
 
@@ -91,91 +118,11 @@ fn update_world(cells: &mut [Cell]) {
     for y in (0..GRID_Y_SIZE).rev() {
         for x in 0..GRID_X_SIZE {
             let pixel_pos: usize = (y * GRID_X_SIZE) + x;
-            let down: usize = pixel_pos + GRID_X_SIZE;
-            let down_left: usize = down - 1;
-            let down_right: usize = down + 1;
 
             match cells[pixel_pos].state {
-                CellState::Dead => continue,
-                CellState::Sand => {
-                    //Down-Side checker
-                    let downleft_is_empty = cells[down_left] == Cell::spawn_empty();
-                    let downright_is_empty = cells[down_right] == Cell::spawn_empty();
-
-                    if y != GRID_Y_SIZE - 1 {
-                        //Down
-                        if cells[down] == Cell::spawn_empty() {
-                            cells[down] = Cell::spawn_sand();
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        //Down water
-                        } else if cells[down].state == CellState::Water {
-                            cells[down] = Cell::spawn_sand();
-                            cells[pixel_pos] = Cell::spawn_water();
-                        //Down left
-                        } else if x != 0 && downleft_is_empty {
-                            cells[down_left] = Cell::spawn_sand();
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        //Down right
-                        } else if x != GRID_X_SIZE - 1 && downright_is_empty {
-                            cells[down_right] = Cell::spawn_sand();
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        }
-                    }
-                }
-                CellState::Water => {
-                    //Down-Side checker
-                    let downleft_is_empty = cells[down_left] == Cell::spawn_empty();
-                    let downright_is_empty = cells[down_right] == Cell::spawn_empty();
-                    //Side checker
-                    let left_is_empty = cells[pixel_pos - 1] == Cell::spawn_empty();
-                    let right_is_empty = cells[pixel_pos + 1] == Cell::spawn_empty();
-
-                    if y != GRID_Y_SIZE - 1 {
-                        //Down
-                        if cells[down] == Cell::spawn_empty() {
-                            cells[down] = Cell::spawn_water();
-                            cells[pixel_pos] = Cell::spawn_empty();
-
-                        //Down left
-                        } else if x != 0 && downleft_is_empty {
-                            cells[down_left] = Cell::spawn_water();
-                            cells[pixel_pos] = Cell::spawn_empty();
-
-                        //Down right
-                        } else if x != GRID_X_SIZE - 1 && downright_is_empty {
-                            cells[down_right] = Cell::spawn_water();
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        //Left
-                        } else if x != 0
-                            && left_is_empty
-                            && cells[pixel_pos].move_direction == Direction::Left
-                            && !cells[pixel_pos].is_moved
-                        {
-                            cells[pixel_pos - 1] = Cell::spawn_water();
-                            cells[pixel_pos - 1].move_direction = Direction::Left;
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        //Right
-                        } else if x != GRID_X_SIZE - 1
-                            && right_is_empty
-                            && cells[pixel_pos].move_direction == Direction::Right
-                            && !cells[pixel_pos].is_moved
-                        {
-                            cells[pixel_pos + 1] = Cell::spawn_water();
-                            cells[pixel_pos + 1].move_direction = Direction::Right;
-                            cells[pixel_pos] = Cell::spawn_empty();
-                        } else {
-                            match cells[pixel_pos].move_direction {
-                                Direction::Left => {
-                                    cells[pixel_pos].move_direction = Direction::Right
-                                }
-                                Direction::Right => {
-                                    cells[pixel_pos].move_direction = Direction::Left
-                                }
-                                Direction::None => (),
-                            }
-                        }
-                    }
-                }
+                CellState::Sand => update_sand(x, y, cells),
+                CellState::Water => update_water(x, y, cells),
+                _ => (),
             }
         }
     }
