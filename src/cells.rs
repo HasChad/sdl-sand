@@ -6,6 +6,7 @@ pub enum CellState {
     Dead,
     Sand,
     Water,
+    Stone,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -67,6 +68,16 @@ impl Cell {
             cell_type: CellType::Liquid,
             is_moved: true,
             color: Color::RGB(71, 140, 207),
+        }
+    }
+
+    pub fn spawn_stone() -> Cell {
+        Cell {
+            state: CellState::Stone,
+            move_direction: Direction::None,
+            cell_type: CellType::Solid,
+            is_moved: true,
+            color: Color::RGB(151, 125, 139),
         }
     }
 }

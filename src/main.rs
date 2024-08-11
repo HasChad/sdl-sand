@@ -62,6 +62,7 @@ pub fn main() -> Result<(), String> {
         update_dropper(&mut cells, &mut brush, &mut event_pump);
         update_world(&mut cells);
         draw_world(&mut cells, &mut canvas);
+        cursor_square(&mut canvas, &mut event_pump);
 
         canvas.present();
     }
@@ -75,6 +76,8 @@ fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPu
         match input {
             Scancode::Num1 => *brush = Cell::spawn_sand(),
             Scancode::Num2 => *brush = Cell::spawn_water(),
+            Scancode::Num3 => *brush = Cell::spawn_stone(),
+            //TODO: add button to clear canvas
             _ => (),
         }
     }
@@ -91,13 +94,21 @@ fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPu
         && event_pump.mouse_state().left()
         && cells[pixel_pos] == Cell::spawn_empty()
     {
+        //TODO: Add better brush size changer
         cells[pixel_pos] = *brush;
 
         //top
+        cells[pixel_pos - 2 * GRID_X_SIZE - 2] = *brush;
+        cells[pixel_pos - 2 * GRID_X_SIZE - 1] = *brush;
         cells[pixel_pos - 2 * GRID_X_SIZE] = *brush;
-        cells[pixel_pos - GRID_X_SIZE] = *brush;
+        cells[pixel_pos - 2 * GRID_X_SIZE + 1] = *brush;
+        cells[pixel_pos - 2 * GRID_X_SIZE + 2] = *brush;
+
+        cells[pixel_pos - GRID_X_SIZE - 2] = *brush;
         cells[pixel_pos - GRID_X_SIZE - 1] = *brush;
+        cells[pixel_pos - GRID_X_SIZE] = *brush;
         cells[pixel_pos - GRID_X_SIZE + 1] = *brush;
+        cells[pixel_pos - GRID_X_SIZE + 2] = *brush;
 
         //middle
         cells[pixel_pos - 2] = *brush;
@@ -106,10 +117,44 @@ fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPu
         cells[pixel_pos + 2] = *brush;
 
         //bottom
+        cells[pixel_pos + 2 * GRID_X_SIZE - 2] = *brush;
+        cells[pixel_pos + 2 * GRID_X_SIZE - 1] = *brush;
         cells[pixel_pos + 2 * GRID_X_SIZE] = *brush;
-        cells[pixel_pos + GRID_X_SIZE] = *brush;
+        cells[pixel_pos + 2 * GRID_X_SIZE + 1] = *brush;
+        cells[pixel_pos + 2 * GRID_X_SIZE + 2] = *brush;
+
+        cells[pixel_pos + GRID_X_SIZE - 2] = *brush;
         cells[pixel_pos + GRID_X_SIZE - 1] = *brush;
+        cells[pixel_pos + GRID_X_SIZE] = *brush;
         cells[pixel_pos + GRID_X_SIZE + 1] = *brush;
+        cells[pixel_pos + GRID_X_SIZE + 2] = *brush;
+    }
+
+    if mouse_xpos >= 0
+        && mouse_xpos < (GRID_X_SIZE as i32)
+        && mouse_ypos >= 0
+        && mouse_ypos < (GRID_Y_SIZE as i32)
+        && event_pump.mouse_state().right()
+    {
+        cells[pixel_pos] = Cell::spawn_empty();
+
+        //top
+        cells[pixel_pos - 2 * GRID_X_SIZE] = Cell::spawn_empty();
+        cells[pixel_pos - GRID_X_SIZE] = Cell::spawn_empty();
+        cells[pixel_pos - GRID_X_SIZE - 1] = Cell::spawn_empty();
+        cells[pixel_pos - GRID_X_SIZE + 1] = Cell::spawn_empty();
+
+        //middle
+        cells[pixel_pos - 2] = Cell::spawn_empty();
+        cells[pixel_pos - 1] = Cell::spawn_empty();
+        cells[pixel_pos + 1] = Cell::spawn_empty();
+        cells[pixel_pos + 2] = Cell::spawn_empty();
+
+        //bottom
+        cells[pixel_pos + 2 * GRID_X_SIZE] = Cell::spawn_empty();
+        cells[pixel_pos + GRID_X_SIZE] = Cell::spawn_empty();
+        cells[pixel_pos + GRID_X_SIZE - 1] = Cell::spawn_empty();
+        cells[pixel_pos + GRID_X_SIZE + 1] = Cell::spawn_empty();
     }
 }
 
@@ -147,4 +192,51 @@ fn draw_world(cells: &mut [Cell], canvas: &mut Canvas<Window>) {
                 .unwrap_or_default();
         }
     }
+}
+
+fn cursor_square(canvas: &mut Canvas<Window>, event_pump: &mut EventPump) {
+    let mouse_xpos = event_pump.mouse_state().x();
+    let mouse_ypos = event_pump.mouse_state().y();
+
+    canvas.set_draw_color(Color::WHITE);
+
+    canvas
+        .fill_rect(Rect::new(
+            mouse_xpos - 2 * DOT_SIZE_IN_PXS as i32,
+            mouse_ypos,
+            DOT_SIZE_IN_PXS as u32,
+            DOT_SIZE_IN_PXS as u32,
+        ))
+        .ok()
+        .unwrap_or_default();
+
+    canvas
+        .fill_rect(Rect::new(
+            mouse_xpos + 2 * DOT_SIZE_IN_PXS as i32,
+            mouse_ypos,
+            DOT_SIZE_IN_PXS as u32,
+            DOT_SIZE_IN_PXS as u32,
+        ))
+        .ok()
+        .unwrap_or_default();
+
+    canvas
+        .fill_rect(Rect::new(
+            mouse_xpos,
+            mouse_ypos + 2 * DOT_SIZE_IN_PXS as i32,
+            DOT_SIZE_IN_PXS as u32,
+            DOT_SIZE_IN_PXS as u32,
+        ))
+        .ok()
+        .unwrap_or_default();
+
+    canvas
+        .fill_rect(Rect::new(
+            mouse_xpos,
+            mouse_ypos - 2 * DOT_SIZE_IN_PXS as i32,
+            DOT_SIZE_IN_PXS as u32,
+            DOT_SIZE_IN_PXS as u32,
+        ))
+        .ok()
+        .unwrap_or_default();
 }
