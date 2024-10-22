@@ -1,13 +1,4 @@
-use sdl2::{
-    event::Event,
-    keyboard::{Keycode, Scancode},
-    pixels::Color,
-    rect::Rect,
-    render::Canvas,
-    video::Window,
-    EventPump,
-};
-use std::{thread::sleep, time::Duration};
+use macroquad::prelude::*;
 
 mod cell_updates;
 pub mod cells;
@@ -19,125 +10,128 @@ const GRID_X_SIZE: usize = 300;
 const GRID_Y_SIZE: usize = 160;
 const DOT_SIZE_IN_PXS: usize = 4;
 
-pub fn main() -> Result<(), String> {
-    let sdl_context = sdl2::init()?; //SDL2 init
-    let video_subsystem = sdl_context.video()?;
-    let window = video_subsystem //Creating window
-        .window(
-            "SDL-Sand",
-            (GRID_X_SIZE * DOT_SIZE_IN_PXS) as u32,
-            (GRID_Y_SIZE * DOT_SIZE_IN_PXS) as u32,
-        )
-        .position_centered()
-        .opengl()
-        .build()
-        .map_err(|e| e.to_string())?;
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Macro-Sand".into(),
+        window_width: (GRID_X_SIZE * DOT_SIZE_IN_PXS) as i32,
+        window_height: (GRID_Y_SIZE * DOT_SIZE_IN_PXS) as i32,
+        window_resizable: false,
+        ..Default::default()
+    }
+}
 
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-    canvas.clear();
+#[macroquad::main(window_conf)]
+pub async fn main() -> Result<(), String> {
+    // Rendering things
+    let mut image = Image::gen_image_color(
+        GRID_X_SIZE as u16,
+        GRID_Y_SIZE as u16,
+        Color::from_rgba(10, 10, 10, 255),
+    );
+    let texture = Texture2D::from_image(&image);
+    let texture_param = DrawTextureParams {
+        dest_size: Some(Vec2 {
+            x: screen_width(),
+            y: screen_height(),
+        }),
+        source: None,
+        rotation: 0.,
+        flip_x: false,
+        flip_y: false,
+        pivot: None,
+    };
 
-    let mut event_pump = sdl_context.event_pump()?;
-
-    //Game things
-    let mut cells = vec![Cell::spawn_empty(); GRID_X_SIZE * GRID_Y_SIZE + GRID_X_SIZE + 1];
+    // Game things
+    let mut cells = vec![Cell::spawn_empty(); GRID_X_SIZE * GRID_Y_SIZE];
     let mut brush = Cell::spawn_sand();
 
-    //Game Loop
+    // Game Loop
     'running: loop {
-        sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        canvas.set_draw_color(Color::RGB(10, 10, 10));
-        canvas.clear();
-
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. } //Quit app when pressed close button
-                | Event::KeyDown { //Quit app when pressed escape button 
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                _ => {}
-            }
+        if is_key_pressed(KeyCode::Escape) {
+            break 'running;
         }
 
-        update_dropper(&mut cells, &mut brush, &mut event_pump);
-        update_world(&mut cells);
-        draw_world(&mut cells, &mut canvas);
-        cursor_square(&mut canvas, &mut event_pump);
+        update_dropper(&mut cells, &mut brush).await;
+        update_world(&mut cells).await;
+        draw_world(&mut cells, &mut image, &texture, &texture_param).await;
 
-        canvas.present();
+        next_frame().await
     }
 
     Ok(())
 }
 
-fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPump) {
+async fn update_dropper(cells: &mut [Cell], brush: &mut Cell) {
     //Change Brush
-    for input in event_pump.keyboard_state().pressed_scancodes() {
+    if let Some(input) = get_last_key_pressed() {
         match input {
-            Scancode::Num1 => *brush = Cell::spawn_sand(),
-            Scancode::Num2 => *brush = Cell::spawn_water(),
-            Scancode::Num3 => *brush = Cell::spawn_stone(),
+            KeyCode::Key1 => *brush = Cell::spawn_sand(),
+            KeyCode::Key2 => *brush = Cell::spawn_water(),
+            KeyCode::Key3 => *brush = Cell::spawn_stone(),
             //TODO: add button to clear canvas
             _ => (),
         }
     }
 
     //Mouse Click Spawn
-    let mouse_xpos = event_pump.mouse_state().x() / DOT_SIZE_IN_PXS as i32;
-    let mouse_ypos = event_pump.mouse_state().y() / DOT_SIZE_IN_PXS as i32;
-    let pixel_pos = (mouse_xpos + (mouse_ypos * GRID_X_SIZE as i32)) as usize;
+    let (mouse_xpos, mouse_ypos) = mouse_position();
+    let pixel_posx = mouse_xpos as usize / DOT_SIZE_IN_PXS;
+    let pixel_posy = mouse_ypos as usize / DOT_SIZE_IN_PXS;
+    let pixel_pos = pixel_posx + (pixel_posy * GRID_X_SIZE);
 
-    if mouse_xpos >= 0
-        && mouse_xpos < (GRID_X_SIZE as i32)
-        && mouse_ypos >= 0
-        && mouse_ypos < (GRID_Y_SIZE as i32)
-        && event_pump.mouse_state().left()
-        && cells[pixel_pos] == Cell::spawn_empty()
+    if mouse_xpos >= 0.
+        && mouse_xpos < screen_width()
+        && mouse_ypos >= 0.
+        && mouse_ypos < screen_height()
     {
-        //TODO: Add better brush size changer
-        cells[pixel_pos] = *brush;
+        if is_mouse_button_down(MouseButton::Left) && cells[pixel_pos] == Cell::spawn_empty() {
+            cells[pixel_pos] = *brush;
 
-        //top
-        cells[pixel_pos - 2 * GRID_X_SIZE - 2] = *brush;
-        cells[pixel_pos - 2 * GRID_X_SIZE - 1] = *brush;
-        cells[pixel_pos - 2 * GRID_X_SIZE] = *brush;
-        cells[pixel_pos - 2 * GRID_X_SIZE + 1] = *brush;
-        cells[pixel_pos - 2 * GRID_X_SIZE + 2] = *brush;
+            //top
+            /* cells[pixel_pos - 2 * GRID_X_SIZE - 2] = *brush;
+            cells[pixel_pos - 2 * GRID_X_SIZE - 1] = *brush;
+            cells[pixel_pos - 2 * GRID_X_SIZE] = *brush;
+            cells[pixel_pos - 2 * GRID_X_SIZE + 1] = *brush;
+            cells[pixel_pos - 2 * GRID_X_SIZE + 2] = *brush; */
 
-        cells[pixel_pos - GRID_X_SIZE - 2] = *brush;
-        cells[pixel_pos - GRID_X_SIZE - 1] = *brush;
-        cells[pixel_pos - GRID_X_SIZE] = *brush;
-        cells[pixel_pos - GRID_X_SIZE + 1] = *brush;
-        cells[pixel_pos - GRID_X_SIZE + 2] = *brush;
+            //cells[pixel_pos - GRID_X_SIZE - 2] = *brush;
+            cells[pixel_pos - GRID_X_SIZE - 1] = *brush;
+            cells[pixel_pos - GRID_X_SIZE] = *brush;
+            cells[pixel_pos - GRID_X_SIZE + 1] = *brush;
+            //cells[pixel_pos - GRID_X_SIZE + 2] = *brush;
 
-        //middle
-        cells[pixel_pos - 2] = *brush;
-        cells[pixel_pos - 1] = *brush;
-        cells[pixel_pos + 1] = *brush;
-        cells[pixel_pos + 2] = *brush;
+            //middle
+            cells[pixel_pos - 2] = *brush;
+            cells[pixel_pos - 1] = *brush;
+            cells[pixel_pos + 1] = *brush;
+            cells[pixel_pos + 2] = *brush;
 
-        //bottom
-        cells[pixel_pos + 2 * GRID_X_SIZE - 2] = *brush;
-        cells[pixel_pos + 2 * GRID_X_SIZE - 1] = *brush;
-        cells[pixel_pos + 2 * GRID_X_SIZE] = *brush;
-        cells[pixel_pos + 2 * GRID_X_SIZE + 1] = *brush;
-        cells[pixel_pos + 2 * GRID_X_SIZE + 2] = *brush;
+            //bottom
+            //cells[pixel_pos + GRID_X_SIZE - 2] = *brush;
+            cells[pixel_pos + GRID_X_SIZE - 1] = *brush;
+            cells[pixel_pos + GRID_X_SIZE] = *brush;
+            cells[pixel_pos + GRID_X_SIZE + 1] = *brush;
+            //cells[pixel_pos + GRID_X_SIZE + 2] = *brush;
 
-        cells[pixel_pos + GRID_X_SIZE - 2] = *brush;
-        cells[pixel_pos + GRID_X_SIZE - 1] = *brush;
-        cells[pixel_pos + GRID_X_SIZE] = *brush;
-        cells[pixel_pos + GRID_X_SIZE + 1] = *brush;
-        cells[pixel_pos + GRID_X_SIZE + 2] = *brush;
+            /* cells[pixel_pos + 2 * GRID_X_SIZE - 2] = *brush;
+            cells[pixel_pos + 2 * GRID_X_SIZE - 1] = *brush;
+            cells[pixel_pos + 2 * GRID_X_SIZE] = *brush;
+            cells[pixel_pos + 2 * GRID_X_SIZE + 1] = *brush;
+            cells[pixel_pos + 2 * GRID_X_SIZE + 2] = *brush; */
+        }
+
+        if is_mouse_button_down(MouseButton::Right) {
+            cells[pixel_pos] = Cell::spawn_empty();
+        }
     }
 
+    /*
     if mouse_xpos >= 0
         && mouse_xpos < (GRID_X_SIZE as i32)
         && mouse_ypos >= 0
         && mouse_ypos < (GRID_Y_SIZE as i32)
         && event_pump.mouse_state().right()
     {
-        cells[pixel_pos] = Cell::spawn_empty();
-
         //top
         cells[pixel_pos - 2 * GRID_X_SIZE] = Cell::spawn_empty();
         cells[pixel_pos - GRID_X_SIZE] = Cell::spawn_empty();
@@ -156,87 +150,69 @@ fn update_dropper(cells: &mut [Cell], brush: &mut Cell, event_pump: &mut EventPu
         cells[pixel_pos + GRID_X_SIZE - 1] = Cell::spawn_empty();
         cells[pixel_pos + GRID_X_SIZE + 1] = Cell::spawn_empty();
     }
+     */
 }
 
-fn update_world(cells: &mut [Cell]) {
-    //Pixel iterate
+async fn update_world(cells: &mut [Cell]) {
+    // Pixel iterate
     for y in (0..GRID_Y_SIZE).rev() {
         for x in 0..GRID_X_SIZE {
             let pixel_pos: usize = (y * GRID_X_SIZE) + x;
 
             match cells[pixel_pos].state {
-                CellState::Sand => update_sand(x, y, cells),
-                CellState::Water => update_water(x, y, cells),
+                CellState::Sand => update_sand(x, y, cells).await,
+                CellState::Water => update_water(x, y, cells).await,
                 _ => (),
             }
         }
     }
 }
 
-fn draw_world(cells: &mut [Cell], canvas: &mut Canvas<Window>) {
-    //Per-pixel coloring
+async fn draw_world(
+    cells: &mut [Cell],
+    image: &mut Image,
+    texture: &Texture2D,
+    texture_param: &DrawTextureParams,
+) {
+    // Per-pixel coloring
     for (i, cell) in cells.iter_mut().enumerate() {
-        if cell.state != CellState::Dead {
-            canvas.set_draw_color(cell.color);
+        image.set_pixel(
+            (i % GRID_X_SIZE) as u32,
+            (i / GRID_X_SIZE) as u32,
+            cell.color,
+        );
+    }
 
-            cell.is_moved = false;
+    // Cursor
+    let (mouse_xpos, mouse_ypos) = mouse_position();
+    let pixel_posx = mouse_xpos / DOT_SIZE_IN_PXS as f32;
+    let pixel_posy = mouse_ypos / DOT_SIZE_IN_PXS as f32;
 
-            canvas
-                .fill_rect(Rect::new(
-                    ((i % GRID_X_SIZE) * DOT_SIZE_IN_PXS) as i32,
-                    ((i / GRID_X_SIZE) * DOT_SIZE_IN_PXS) as i32,
-                    DOT_SIZE_IN_PXS as u32,
-                    DOT_SIZE_IN_PXS as u32,
-                ))
-                .ok()
-                .unwrap_or_default();
+    if mouse_xpos >= 0.
+        && mouse_xpos < screen_width()
+        && mouse_ypos >= 0.
+        && mouse_ypos < screen_height()
+    {
+        // left
+        if mouse_xpos > DOT_SIZE_IN_PXS as f32 {
+            image.set_pixel(pixel_posx as u32 - 1, pixel_posy as u32, WHITE);
+        }
+        // right
+        if mouse_xpos < screen_width() - DOT_SIZE_IN_PXS as f32 {
+            image.set_pixel(pixel_posx as u32 + 1, pixel_posy as u32, WHITE);
+        }
+        // top
+        if mouse_ypos > DOT_SIZE_IN_PXS as f32 {
+            image.set_pixel(pixel_posx as u32, pixel_posy as u32 - 1, WHITE);
+        }
+        // bottom
+        if mouse_ypos < screen_height() - DOT_SIZE_IN_PXS as f32 {
+            image.set_pixel(pixel_posx as u32, pixel_posy as u32 + 1, WHITE);
         }
     }
-}
 
-fn cursor_square(canvas: &mut Canvas<Window>, event_pump: &mut EventPump) {
-    let mouse_xpos = event_pump.mouse_state().x();
-    let mouse_ypos = event_pump.mouse_state().y();
-
-    canvas.set_draw_color(Color::WHITE);
-
-    canvas
-        .fill_rect(Rect::new(
-            mouse_xpos - 2 * DOT_SIZE_IN_PXS as i32,
-            mouse_ypos,
-            DOT_SIZE_IN_PXS as u32,
-            DOT_SIZE_IN_PXS as u32,
-        ))
-        .ok()
-        .unwrap_or_default();
-
-    canvas
-        .fill_rect(Rect::new(
-            mouse_xpos + 2 * DOT_SIZE_IN_PXS as i32,
-            mouse_ypos,
-            DOT_SIZE_IN_PXS as u32,
-            DOT_SIZE_IN_PXS as u32,
-        ))
-        .ok()
-        .unwrap_or_default();
-
-    canvas
-        .fill_rect(Rect::new(
-            mouse_xpos,
-            mouse_ypos + 2 * DOT_SIZE_IN_PXS as i32,
-            DOT_SIZE_IN_PXS as u32,
-            DOT_SIZE_IN_PXS as u32,
-        ))
-        .ok()
-        .unwrap_or_default();
-
-    canvas
-        .fill_rect(Rect::new(
-            mouse_xpos,
-            mouse_ypos - 2 * DOT_SIZE_IN_PXS as i32,
-            DOT_SIZE_IN_PXS as u32,
-            DOT_SIZE_IN_PXS as u32,
-        ))
-        .ok()
-        .unwrap_or_default();
+    // Rendering
+    texture.update(image);
+    texture.set_filter(FilterMode::Nearest);
+    draw_texture_ex(texture, 0., 0., WHITE, texture_param.clone());
 }

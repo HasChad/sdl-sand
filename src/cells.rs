@@ -1,5 +1,5 @@
+use macroquad::color::Color;
 use rand::{thread_rng, Rng};
-use sdl2::pixels::Color;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CellState {
@@ -40,7 +40,7 @@ impl Cell {
             move_direction: Direction::None,
             cell_type: CellType::None,
             is_moved: false,
-            color: Color::RGB(10, 10, 10),
+            color: Color::from_rgba(10, 10, 10, 255),
         }
     }
     pub fn spawn_sand() -> Cell {
@@ -53,7 +53,7 @@ impl Cell {
             },
             cell_type: CellType::Solid,
             is_moved: true,
-            color: Color::RGB(255, 204, 92),
+            color: Color::from_rgba(255, 204, 92, 255),
         }
     }
 
@@ -67,7 +67,7 @@ impl Cell {
             },
             cell_type: CellType::Liquid,
             is_moved: true,
-            color: Color::RGB(71, 140, 207),
+            color: Color::from_rgba(71, 140, 207, 255),
         }
     }
 
@@ -77,7 +77,7 @@ impl Cell {
             move_direction: Direction::None,
             cell_type: CellType::Solid,
             is_moved: true,
-            color: Color::RGB(151, 125, 139),
+            color: Color::from_rgba(151, 125, 139, 255),
         }
     }
 }
