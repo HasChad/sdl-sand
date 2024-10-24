@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use macroquad::{
     prelude::*,
     ui::{hash, root_ui, widgets},
