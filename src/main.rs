@@ -1,4 +1,7 @@
-use macroquad::prelude::*;
+use macroquad::{
+    prelude::*,
+    ui::{hash, root_ui, widgets},
+};
 
 mod cell_updates;
 pub mod cells;
@@ -62,12 +65,36 @@ pub async fn main() -> Result<(), String> {
 }
 
 async fn update_dropper(cells: &mut [Cell], brush: &mut Cell) {
+    let ui_windows_size = Vec2::new(150., 200.);
+    let ui_windows_pos = Vec2::new(25., 25.);
+
+    widgets::Window::new(hash!(), ui_windows_pos, ui_windows_size)
+        .label("User Window")
+        .ui(&mut root_ui(), |ui| {
+            ui.tree_node(hash!(), "Brushes", |ui| {
+                if ui.button(Vec2::new(10., 25.), "Sand") {
+                    *brush = Cell::spawn_sand()
+                }
+                if ui.button(Vec2::new(10., 50.), "Water") {
+                    *brush = Cell::spawn_water()
+                }
+                if ui.button(Vec2::new(10., 75.), "Stone") {
+                    *brush = Cell::spawn_stone()
+                }
+            });
+        });
+
     //Change Brush
     if let Some(input) = get_last_key_pressed() {
         match input {
             KeyCode::Key1 => *brush = Cell::spawn_sand(),
             KeyCode::Key2 => *brush = Cell::spawn_water(),
             KeyCode::Key3 => *brush = Cell::spawn_stone(),
+            KeyCode::C => {
+                for cell in cells.iter_mut() {
+                    *cell = Cell::spawn_empty();
+                }
+            }
             //TODO: add button to clear canvas
             _ => (),
         }
@@ -83,6 +110,10 @@ async fn update_dropper(cells: &mut [Cell], brush: &mut Cell) {
         && mouse_xpos < screen_width()
         && mouse_ypos >= 0.
         && mouse_ypos < screen_height()
+        && !((mouse_xpos > ui_windows_pos.x)
+            && (mouse_xpos < ui_windows_pos.x + ui_windows_size.x)
+            && (mouse_ypos > ui_windows_pos.y)
+            && (mouse_ypos < ui_windows_pos.y + ui_windows_size.y))
     {
         if is_mouse_button_down(MouseButton::Left) && cells[pixel_pos] == Cell::spawn_empty() {
             cells[pixel_pos] = *brush;
@@ -122,35 +153,24 @@ async fn update_dropper(cells: &mut [Cell], brush: &mut Cell) {
 
         if is_mouse_button_down(MouseButton::Right) {
             cells[pixel_pos] = Cell::spawn_empty();
+
+            //top
+            cells[pixel_pos - GRID_X_SIZE - 1] = Cell::spawn_empty();
+            cells[pixel_pos - GRID_X_SIZE] = Cell::spawn_empty();
+            cells[pixel_pos - GRID_X_SIZE + 1] = Cell::spawn_empty();
+
+            //middle
+            cells[pixel_pos - 2] = Cell::spawn_empty();
+            cells[pixel_pos - 1] = Cell::spawn_empty();
+            cells[pixel_pos + 1] = Cell::spawn_empty();
+            cells[pixel_pos + 2] = Cell::spawn_empty();
+
+            //bottom
+            cells[pixel_pos + GRID_X_SIZE - 1] = Cell::spawn_empty();
+            cells[pixel_pos + GRID_X_SIZE] = Cell::spawn_empty();
+            cells[pixel_pos + GRID_X_SIZE + 1] = Cell::spawn_empty();
         }
     }
-
-    /*
-    if mouse_xpos >= 0
-        && mouse_xpos < (GRID_X_SIZE as i32)
-        && mouse_ypos >= 0
-        && mouse_ypos < (GRID_Y_SIZE as i32)
-        && event_pump.mouse_state().right()
-    {
-        //top
-        cells[pixel_pos - 2 * GRID_X_SIZE] = Cell::spawn_empty();
-        cells[pixel_pos - GRID_X_SIZE] = Cell::spawn_empty();
-        cells[pixel_pos - GRID_X_SIZE - 1] = Cell::spawn_empty();
-        cells[pixel_pos - GRID_X_SIZE + 1] = Cell::spawn_empty();
-
-        //middle
-        cells[pixel_pos - 2] = Cell::spawn_empty();
-        cells[pixel_pos - 1] = Cell::spawn_empty();
-        cells[pixel_pos + 1] = Cell::spawn_empty();
-        cells[pixel_pos + 2] = Cell::spawn_empty();
-
-        //bottom
-        cells[pixel_pos + 2 * GRID_X_SIZE] = Cell::spawn_empty();
-        cells[pixel_pos + GRID_X_SIZE] = Cell::spawn_empty();
-        cells[pixel_pos + GRID_X_SIZE - 1] = Cell::spawn_empty();
-        cells[pixel_pos + GRID_X_SIZE + 1] = Cell::spawn_empty();
-    }
-     */
 }
 
 async fn update_world(cells: &mut [Cell]) {
